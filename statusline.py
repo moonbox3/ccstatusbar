@@ -8,8 +8,11 @@ context %, rate-limit segments, colors, and the render budget.
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
+
+GIT_TIMEOUT_SECONDS = 2
 
 
 def read_payload(stream) -> dict:
@@ -44,12 +47,100 @@ def extract_model_name(payload: dict) -> str:
     return ""
 
 
+def parse_git_porcelain(output: str) -> dict:
+    """Parse `git status --porcelain=v2 --branch` text into a dict.
+
+    Empty output → not in a repo. The XY field on tracked entries is
+    `<index><worktree>`; `.` means unchanged, so any non-`.` in the first
+    position counts as staged and any non-`.` in the second as unstaged.
+    """
+    if not output.strip():
+        return {"in_repo": False}
+    branch = None
+    ahead = behind = staged = unstaged = untracked = 0
+    for line in output.splitlines():
+        if line.startswith("# branch.head "):
+            branch = line[len("# branch.head "):].strip()
+        elif line.startswith("# branch.ab "):
+            for tok in line.split()[2:]:
+                if tok.startswith("+"):
+                    ahead = int(tok[1:])
+                elif tok.startswith("-"):
+                    behind = int(tok[1:])
+        elif line.startswith(("1 ", "2 ")):
+            xy = line.split(" ", 2)[1]
+            if len(xy) >= 2:
+                if xy[0] != ".":
+                    staged += 1
+                if xy[1] != ".":
+                    unstaged += 1
+        elif line.startswith("u "):
+            unstaged += 1
+        elif line.startswith("? "):
+            untracked += 1
+    if branch is None:
+        return {"in_repo": False}
+    return {
+        "in_repo": True,
+        "branch": branch,
+        "staged": staged,
+        "unstaged": unstaged,
+        "untracked": untracked,
+        "ahead": ahead,
+        "behind": behind,
+    }
+
+
+def get_git_status(cwd: str = None) -> dict:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain=v2", "--branch"],
+            capture_output=True, text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            cwd=cwd,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired,
+            subprocess.SubprocessError):
+        return {"in_repo": False}
+    if result.returncode != 0:
+        return {"in_repo": False}
+    return parse_git_porcelain(result.stdout)
+
+
+def render_git_segment(g: dict) -> str:
+    if not g.get("in_repo"):
+        return ""
+    branch = g.get("branch") or ""
+    counters = []
+    if g.get("staged"):
+        counters.append(f"S:{g['staged']}")
+    if g.get("unstaged"):
+        counters.append(f"U:{g['unstaged']}")
+    if g.get("untracked"):
+        counters.append(f"A:{g['untracked']}")
+    arrows = ""
+    if g.get("ahead"):
+        arrows += f"↑{g['ahead']}"
+    if g.get("behind"):
+        arrows += f"↓{g['behind']}"
+    seg = branch
+    if counters:
+        seg = f"{branch} | {' '.join(counters)}"
+    if arrows:
+        seg = f"{seg} {arrows}"
+    return seg
+
+
 def render(payload: dict) -> str:
     parts = []
     cwd = extract_cwd_basename(payload)
     model = extract_model_name(payload)
+    git_cwd = (payload.get("workspace") or {}).get("current_dir")
+    git_seg = render_git_segment(get_git_status(git_cwd))
     if cwd:
         parts.append(cwd)
+    if git_seg:
+        parts.append(git_seg)
     if model:
         parts.append(model)
     return "  ".join(parts)
