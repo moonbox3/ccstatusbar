@@ -1,0 +1,6 @@
+PRD.md
+issues/
+.ralph/
+.cache/
+__pycache__/
+*.pyc
