@@ -129,15 +129,21 @@ class ParseTranscriptTests(unittest.TestCase):
 
 
 class RenderCtxSegmentTests(unittest.TestCase):
-    def test_none_info_omits_segment(self):
-        self.assertEqual(render_ctx_segment(None), "")
+    def test_none_info_renders_zero(self):
+        self.assertEqual(render_ctx_segment(None), "ctx:0%(0k/200k)")
 
-    def test_zero_used_omits_segment(self):
+    def test_zero_used_renders_zero(self):
         info = {
             "input_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0,
             "model_id": "claude-opus-4-7",
         }
-        self.assertEqual(render_ctx_segment(info), "")
+        self.assertEqual(render_ctx_segment(info), "ctx:0%(0k/200k)")
+
+    def test_none_info_uses_model_hint_for_limit(self):
+        self.assertEqual(
+            render_ctx_segment(None, model_hint="Opus 4.7 (1M context)"),
+            "ctx:0%(0k/1000k)",
+        )
 
     def test_basic_200k_render(self):
         info = {
@@ -195,13 +201,13 @@ class RenderIntegrationTests(unittest.TestCase):
         self.assertTrue(line.endswith("Opus 4.7"))
         self.assertIn(non_git.name, line)
 
-    def test_missing_transcript_omits_ctx_segment(self):
+    def test_missing_transcript_renders_zero_ctx(self):
         line = render({
             "model": {"display_name": "Opus 4.7"},
             "workspace": {"current_dir": str(Path(self.tmp.name))},
             "transcript_path": str(self.path) + ".missing",
         })
-        self.assertNotIn("ctx:", line)
+        self.assertIn("ctx:0%(0k/200k)", line)
 
     def test_corrupt_transcript_does_not_crash(self):
         self.path.write_text("garbage\n{not json")
@@ -210,7 +216,7 @@ class RenderIntegrationTests(unittest.TestCase):
             "workspace": {"current_dir": str(Path(self.tmp.name))},
             "transcript_path": str(self.path),
         })
-        self.assertNotIn("ctx:", line)
+        self.assertIn("ctx:0%(0k/200k)", line)
 
 
 if __name__ == "__main__":

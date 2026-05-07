@@ -238,13 +238,11 @@ def extract_model_hints(payload: dict) -> str:
 
 
 def render_ctx_segment(info: dict, model_hint: str = "", colorize: bool = False) -> str:
-    if not info:
-        return ""
+    info = info or {}
     used = (info.get("input_tokens", 0)
             + info.get("cache_read_tokens", 0)
             + info.get("cache_creation_tokens", 0))
-    if used <= 0:
-        return ""
+    used = max(0, used)
     limit = context_limit(info.get("model_id") or "", model_hint)
     pct = round(used * 100 / limit)
     used_k = used // 1000
