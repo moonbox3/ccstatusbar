@@ -26,7 +26,19 @@ This script is a single ~800-line Python file you can read end-to-end. What it t
 curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/install.sh | bash
 ```
 
-This downloads `statusline.py` to `~/.claude/ccstatusbar.py`, makes it executable, and patches `~/.claude/settings.json` to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
+This downloads `statusline.py` (pinned to the latest tagged release) to `~/.claude/ccstatusbar.py`, makes it executable, and patches `~/.claude/settings.json` to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
+
+To pin a specific version or follow `main`, set `CCSTATUSBAR_REF`:
+
+```bash
+# pin to a specific release
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/install.sh | CCSTATUSBAR_REF=v1.0.0 bash
+
+# follow main (bleeding edge)
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/install.sh | CCSTATUSBAR_REF=main bash
+```
+
+Releases are published at https://github.com/moonbox3/ccstatusbar/releases.
 
 Restart Claude Code after install.
 
@@ -34,7 +46,7 @@ Restart Claude Code after install.
 
 If you'd rather not pipe a script into bash:
 
-1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/statusline.py) to `~/.claude/ccstatusbar.py`.
+1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.0/statusline.py) to `~/.claude/ccstatusbar.py` (or pick a release at https://github.com/moonbox3/ccstatusbar/releases).
 2. `chmod +x ~/.claude/ccstatusbar.py`.
 3. Add this to `~/.claude/settings.json` (merge with anything that's already there):
 

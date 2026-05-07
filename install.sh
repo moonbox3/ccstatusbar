@@ -6,10 +6,12 @@
 #
 # Honors $HOME so it can be exercised in a sandbox during tests.
 # Override the source URL by exporting CCSTATUSBAR_SRC_URL.
+# Override the pinned version (tag, branch, or commit) with CCSTATUSBAR_REF.
 
 set -euo pipefail
 
-SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/statusline.py}"
+CCSTATUSBAR_REF="${CCSTATUSBAR_REF:-v1.0.0}"
+SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/ccstatusbar/${CCSTATUSBAR_REF}/statusline.py}"
 DEST_DIR="${HOME}/.claude"
 DEST_SCRIPT="${DEST_DIR}/ccstatusbar.py"
 SETTINGS="${DEST_DIR}/settings.json"
