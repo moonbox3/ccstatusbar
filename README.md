@@ -11,7 +11,7 @@ Segments appear and disappear based on what's available — no git repo, no git 
 ## Install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/evanrmattso/ccstatusbar/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/install.sh | bash
 ```
 
 This downloads `statusline.py` to `~/.claude/ccstatusbar.py`, makes it executable, and patches `~/.claude/settings.json` to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
@@ -22,7 +22,7 @@ Restart Claude Code after install.
 
 If you'd rather not pipe a script into bash:
 
-1. Download [`statusline.py`](https://raw.githubusercontent.com/evanrmattso/ccstatusbar/main/statusline.py) to `~/.claude/ccstatusbar.py`.
+1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/statusline.py) to `~/.claude/ccstatusbar.py`.
 2. `chmod +x ~/.claude/ccstatusbar.py`.
 3. Add this to `~/.claude/settings.json` (merge with anything that's already there):
 

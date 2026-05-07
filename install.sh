@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/evanrmattso/ccstatusbar/main/statusline.py}"
+SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/ccstatusbar/main/statusline.py}"
 DEST_DIR="${HOME}/.claude"
 DEST_SCRIPT="${DEST_DIR}/ccstatusbar.py"
 SETTINGS="${DEST_DIR}/settings.json"
