@@ -260,6 +260,7 @@ class GitSegmentIntegrationTests(unittest.TestCase):
                            capture_output=True)
 
     def _run(self, cwd: Path, payload: dict) -> str:
+        env = {**os.environ, "NO_COLOR": "1"}
         result = subprocess.run(
             [sys.executable, str(SCRIPT)],
             input=json.dumps(payload),
@@ -267,6 +268,7 @@ class GitSegmentIntegrationTests(unittest.TestCase):
             text=True,
             timeout=10,
             cwd=str(cwd),
+            env=env,
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         return result.stdout.strip()

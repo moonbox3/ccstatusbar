@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from statusline import (
     context_limit,
@@ -163,6 +164,15 @@ class RenderIntegrationTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name) / "session.jsonl"
+        import statusline
+        env_patcher = mock.patch.dict(os.environ, {"NO_COLOR": "1"})
+        env_patcher.start()
+        self.addCleanup(env_patcher.stop)
+        # Don't reach out to the network during render integration.
+        gat = mock.patch.object(statusline, "get_access_token",
+                                return_value=(None, None))
+        gat.start()
+        self.addCleanup(gat.stop)
 
     def test_ctx_segment_appears_between_git_and_model(self):
         _write_jsonl(self.path, [

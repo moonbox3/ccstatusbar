@@ -11,12 +11,40 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 GIT_TIMEOUT_SECONDS = 2
+RENDER_BUDGET_SECONDS = 2.0
+
+COLOR_RESET = "\x1b[0m"
+COLOR_DIM = "\x1b[2m"
+COLOR_BLUE = "\x1b[34m"
+COLOR_CYAN = "\x1b[36m"
+COLOR_GREEN = "\x1b[32m"
+COLOR_YELLOW = "\x1b[33m"
+COLOR_RED = "\x1b[31m"
+
+
+def _no_color() -> bool:
+    return os.environ.get("NO_COLOR", "") != ""
+
+
+def _wrap(text: str, code: str, colorize: bool = True) -> str:
+    if not text or not code or not colorize or _no_color():
+        return text
+    return f"{code}{text}{COLOR_RESET}"
+
+
+def _threshold_color(pct: float) -> str:
+    if pct >= 90:
+        return COLOR_RED
+    if pct >= 70:
+        return COLOR_YELLOW
+    return COLOR_GREEN
 
 USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 USAGE_FETCH_TIMEOUT_SECONDS = 3.0
@@ -123,7 +151,7 @@ def get_git_status(cwd: str = None) -> dict:
     return parse_git_porcelain(result.stdout)
 
 
-def render_git_segment(g: dict) -> str:
+def render_git_segment(g: dict, colorize: bool = False) -> str:
     if not g.get("in_repo"):
         return ""
     branch = g.get("branch") or ""
@@ -139,11 +167,13 @@ def render_git_segment(g: dict) -> str:
         arrows += f"↑{g['ahead']}"
     if g.get("behind"):
         arrows += f"↓{g['behind']}"
-    seg = branch
+    branch_part = _wrap(branch, COLOR_CYAN, colorize)
+    seg = branch_part
     if counters:
-        seg = f"{branch} | {' '.join(counters)}"
+        counts_str = _wrap(" ".join(counters), COLOR_YELLOW, colorize)
+        seg = f"{branch_part} | {counts_str}"
     if arrows:
-        seg = f"{seg} {arrows}"
+        seg = f"{seg} {_wrap(arrows, COLOR_CYAN, colorize)}"
     return seg
 
 
@@ -197,7 +227,7 @@ def context_limit(model_id: str) -> int:
     return 200_000
 
 
-def render_ctx_segment(info: dict) -> str:
+def render_ctx_segment(info: dict, colorize: bool = False) -> str:
     if not info:
         return ""
     used = (info.get("input_tokens", 0)
@@ -209,7 +239,10 @@ def render_ctx_segment(info: dict) -> str:
     pct = round(used * 100 / limit)
     used_k = used // 1000
     limit_k = limit // 1000
-    return f"ctx:{pct}%({used_k}k/{limit_k}k)"
+    label = _wrap("ctx:", COLOR_DIM, colorize)
+    pct_str = _wrap(str(pct), _threshold_color(pct), colorize)
+    tail = _wrap(f"%({used_k}k/{limit_k}k)", COLOR_DIM, colorize)
+    return f"{label}{pct_str}{tail}"
 
 
 def _read_keychain_credentials() -> dict:
@@ -634,7 +667,7 @@ def _parse_iso(ts):
         return None
 
 
-def render_rate_limit_segments(usage, now=None):
+def render_rate_limit_segments(usage, now=None, colorize: bool = False):
     if not isinstance(usage, dict):
         return []
     data = usage.get("data") or {}
@@ -643,50 +676,88 @@ def render_rate_limit_segments(usage, now=None):
     star = "*" if usage.get("stale") else ""
     now_dt = now or datetime.datetime.now(datetime.timezone.utc)
 
+    def _build(label, pct, reset_str, fmt_fn):
+        delta = (reset_str - now_dt).total_seconds()
+        pct_int = round(pct)
+        label_part = _wrap(f"{label}:", COLOR_DIM, colorize)
+        pct_part = _wrap(str(pct_int), _threshold_color(pct_int), colorize)
+        tail = _wrap(f"%({fmt_fn(delta)}){star}", COLOR_DIM, colorize)
+        return f"{label_part}{pct_part}{tail}"
+
     segs = []
     fh_pct = data.get("five_hour_pct")
     fh_reset = _parse_iso(data.get("five_hour_resets_at"))
     if fh_pct is not None and fh_reset is not None:
-        delta = (fh_reset - now_dt).total_seconds()
-        segs.append(f"5h:{round(fh_pct)}%({_format_hours_minutes(delta)}){star}")
+        segs.append(_build("5h", fh_pct, fh_reset, _format_hours_minutes))
 
     wk_pct = data.get("weekly_pct")
     wk_reset = _parse_iso(data.get("weekly_resets_at"))
     if wk_pct is not None and wk_reset is not None:
-        delta = (wk_reset - now_dt).total_seconds()
-        segs.append(f"wk:{round(wk_pct)}%({_format_days_hours(delta)}){star}")
+        segs.append(_build("wk", wk_pct, wk_reset, _format_days_hours))
 
     return segs
 
 
-def render(payload: dict) -> str:
+def _fetch_rate_limit_with_budget(deadline_monotonic: float):
+    """Fetch usage + auth marker bounded by a wall-clock deadline.
+
+    On deadline, falls back to whatever the on-disk cache holds (any
+    age) and marks it stale. Returns (usage_info_or_None, auth_marker).
+    """
+    result = {"usage": None, "auth": ""}
+    done = threading.Event()
+
+    def worker():
+        try:
+            token, err = get_access_token()
+            if token:
+                result["usage"] = get_usage(token)
+            elif err == "auth":
+                result["auth"] = "[API auth]"
+        except Exception:
+            pass
+        finally:
+            done.set()
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    remaining = max(0.0, deadline_monotonic - time.monotonic())
+    if not done.wait(timeout=remaining):
+        cache = cache_read()
+        succ = cache.get("last_success") if isinstance(cache, dict) else None
+        if isinstance(succ, dict) and isinstance(succ.get("data"), dict):
+            return {"data": succ["data"], "stale": True}, ""
+        return None, ""
+    return result["usage"], result["auth"]
+
+
+def render(payload: dict, deadline=None) -> str:
+    deadline = deadline if deadline is not None else (
+        time.monotonic() + RENDER_BUDGET_SECONDS)
+    colorize = not _no_color()
+
     parts = []
     cwd = extract_cwd_basename(payload)
     model = extract_model_name(payload)
     git_cwd = (payload.get("workspace") or {}).get("current_dir")
-    git_seg = render_git_segment(get_git_status(git_cwd))
-    ctx_seg = render_ctx_segment(parse_transcript(payload.get("transcript_path")))
+    git_seg = render_git_segment(get_git_status(git_cwd), colorize=colorize)
+    ctx_seg = render_ctx_segment(
+        parse_transcript(payload.get("transcript_path")), colorize=colorize)
 
-    rate_segs = []
-    auth_marker = ""
-    token, auth_err = get_access_token()
-    if token:
-        usage_info = get_usage(token)
-        rate_segs = render_rate_limit_segments(usage_info)
-    elif auth_err == "auth":
-        auth_marker = "[API auth]"
+    usage_info, auth_marker = _fetch_rate_limit_with_budget(deadline)
+    rate_segs = render_rate_limit_segments(usage_info, colorize=colorize)
 
     if cwd:
-        parts.append(cwd)
+        parts.append(_wrap(cwd, COLOR_BLUE, colorize))
     if git_seg:
         parts.append(git_seg)
     if ctx_seg:
         parts.append(ctx_seg)
     parts.extend(rate_segs)
     if auth_marker:
-        parts.append(auth_marker)
+        parts.append(_wrap(auth_marker, COLOR_YELLOW, colorize))
     if model:
-        parts.append(model)
+        parts.append(_wrap(model, COLOR_DIM, colorize))
     return "  ".join(parts)
 
 
