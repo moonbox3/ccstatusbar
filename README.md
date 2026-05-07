@@ -5,6 +5,10 @@
 
 A single-file, stdlib-only status line for [Claude Code](https://claude.com/claude-code). Shows your working directory, git state, context-window usage, and 5-hour / weekly rate-limit usage at a glance.
 
+<p align="center">
+  <img src="docs/ccstatusbar.png" alt="ccstatusbar in a Claude Code session" width="900">
+</p>
+
 ```
 ~/myproject  main | S:2 U:1 ↑1  ctx:42%(84k/200k)  5h:13%(0h44m)  wk:25%(1d1h)  Opus 4.7
 ```
