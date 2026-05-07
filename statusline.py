@@ -221,13 +221,23 @@ def parse_transcript(path) -> dict:
     return None
 
 
-def context_limit(model_id: str) -> int:
-    if model_id and "[1m]" in model_id.lower():
+def context_limit(*hints: str) -> int:
+    blob = " ".join(h for h in hints if h).lower()
+    if "[1m]" in blob or "1m context" in blob or "1-million" in blob:
         return 1_000_000
     return 200_000
 
 
-def render_ctx_segment(info: dict, colorize: bool = False) -> str:
+def extract_model_hints(payload: dict) -> str:
+    model = payload.get("model") or {}
+    if isinstance(model, dict):
+        return f"{model.get('id') or ''} {model.get('display_name') or ''}"
+    if isinstance(model, str):
+        return model
+    return ""
+
+
+def render_ctx_segment(info: dict, model_hint: str = "", colorize: bool = False) -> str:
     if not info:
         return ""
     used = (info.get("input_tokens", 0)
@@ -235,13 +245,13 @@ def render_ctx_segment(info: dict, colorize: bool = False) -> str:
             + info.get("cache_creation_tokens", 0))
     if used <= 0:
         return ""
-    limit = context_limit(info.get("model_id") or "")
+    limit = context_limit(info.get("model_id") or "", model_hint)
     pct = round(used * 100 / limit)
     used_k = used // 1000
     limit_k = limit // 1000
     label = _wrap("ctx:", COLOR_DIM, colorize)
-    pct_str = _wrap(str(pct), _threshold_color(pct), colorize)
-    tail = _wrap(f"%({used_k}k/{limit_k}k)", COLOR_DIM, colorize)
+    pct_str = _wrap(f"{pct}%", _threshold_color(pct), colorize)
+    tail = _wrap(f"({used_k}k/{limit_k}k)", COLOR_DIM, colorize)
     return f"{label}{pct_str}{tail}"
 
 
@@ -471,8 +481,8 @@ def _normalize_usage(raw) -> dict:
     """Map several possible API shapes to a flat dict.
 
     Output keys (each optional): five_hour_pct, five_hour_resets_at,
-    weekly_pct, weekly_resets_at. Percentages are normalized to a 0-100
-    scale (fractional input <=1 is multiplied by 100).
+    weekly_pct, weekly_resets_at. The Anthropic OAuth usage API returns
+    percentages on a 0-100 scale; values are passed through verbatim.
     """
     if not isinstance(raw, dict):
         return {}
@@ -483,10 +493,9 @@ def _normalize_usage(raw) -> dict:
         for k in keys:
             if k in d and d[k] is not None:
                 try:
-                    f = float(d[k])
+                    return float(d[k])
                 except (TypeError, ValueError):
                     continue
-                return f * 100 if f <= 1.0 else f
         return None
 
     def pick_str(d, *keys):
@@ -680,8 +689,8 @@ def render_rate_limit_segments(usage, now=None, colorize: bool = False):
         delta = (reset_str - now_dt).total_seconds()
         pct_int = round(pct)
         label_part = _wrap(f"{label}:", COLOR_DIM, colorize)
-        pct_part = _wrap(str(pct_int), _threshold_color(pct_int), colorize)
-        tail = _wrap(f"%({fmt_fn(delta)}){star}", COLOR_DIM, colorize)
+        pct_part = _wrap(f"{pct_int}%", _threshold_color(pct_int), colorize)
+        tail = _wrap(f"({fmt_fn(delta)}){star}", COLOR_DIM, colorize)
         return f"{label_part}{pct_part}{tail}"
 
     segs = []
@@ -742,7 +751,9 @@ def render(payload: dict, deadline=None) -> str:
     git_cwd = (payload.get("workspace") or {}).get("current_dir")
     git_seg = render_git_segment(get_git_status(git_cwd), colorize=colorize)
     ctx_seg = render_ctx_segment(
-        parse_transcript(payload.get("transcript_path")), colorize=colorize)
+        parse_transcript(payload.get("transcript_path")),
+        model_hint=extract_model_hints(payload),
+        colorize=colorize)
 
     usage_info, auth_marker = _fetch_rate_limit_with_budget(deadline)
     rate_segs = render_rate_limit_segments(usage_info, colorize=colorize)

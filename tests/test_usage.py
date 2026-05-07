@@ -232,15 +232,18 @@ class RenderRateLimitTests(unittest.TestCase):
 
 
 class NormalizeUsageTests(unittest.TestCase):
-    def test_nested_shape_with_fraction(self):
+    def test_nested_shape_passes_percent_through(self):
+        # The OAuth API returns utilization on a 0-100 scale. A value of 1.0
+        # means 1%, NOT "fully utilized" - the original fraction heuristic
+        # corrupted small percentages (1% became 100%).
         raw = {
-            "five_hour": {"utilization": 0.42, "resets_at": "2026-05-07T14:15:00Z"},
-            "weekly": {"utilization": 0.18, "resets_at": "2026-05-10T16:00:00Z"},
+            "five_hour": {"utilization": 1.0, "resets_at": "2026-05-07T14:15:00Z"},
+            "weekly": {"utilization": 26.0, "resets_at": "2026-05-10T16:00:00Z"},
         }
         out = statusline._normalize_usage(raw)
-        self.assertAlmostEqual(out["five_hour_pct"], 42.0)
+        self.assertAlmostEqual(out["five_hour_pct"], 1.0)
         self.assertEqual(out["five_hour_resets_at"], "2026-05-07T14:15:00Z")
-        self.assertAlmostEqual(out["weekly_pct"], 18.0)
+        self.assertAlmostEqual(out["weekly_pct"], 26.0)
 
     def test_flat_shape(self):
         raw = {
