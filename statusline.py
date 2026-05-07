@@ -131,16 +131,84 @@ def render_git_segment(g: dict) -> str:
     return seg
 
 
+def parse_transcript(path) -> dict:
+    """Read the session JSONL and return token info from the last assistant
+    message that carries usage counters. Returns None on any failure.
+    """
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except (OSError, ValueError):
+        return None
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(d, dict) or d.get("type") != "assistant":
+            continue
+        msg = d.get("message")
+        if not isinstance(msg, dict):
+            continue
+        usage = msg.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        input_tokens = usage.get("input_tokens") or 0
+        cache_read = usage.get("cache_read_input_tokens") or 0
+        cache_creation = usage.get("cache_creation_input_tokens") or 0
+        if not (input_tokens or cache_read or cache_creation):
+            continue
+        try:
+            return {
+                "input_tokens": int(input_tokens),
+                "cache_read_tokens": int(cache_read),
+                "cache_creation_tokens": int(cache_creation),
+                "model_id": msg.get("model") or "",
+            }
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def context_limit(model_id: str) -> int:
+    if model_id and "[1m]" in model_id.lower():
+        return 1_000_000
+    return 200_000
+
+
+def render_ctx_segment(info: dict) -> str:
+    if not info:
+        return ""
+    used = (info.get("input_tokens", 0)
+            + info.get("cache_read_tokens", 0)
+            + info.get("cache_creation_tokens", 0))
+    if used <= 0:
+        return ""
+    limit = context_limit(info.get("model_id") or "")
+    pct = round(used * 100 / limit)
+    used_k = used // 1000
+    limit_k = limit // 1000
+    return f"ctx:{pct}%({used_k}k/{limit_k}k)"
+
+
 def render(payload: dict) -> str:
     parts = []
     cwd = extract_cwd_basename(payload)
     model = extract_model_name(payload)
     git_cwd = (payload.get("workspace") or {}).get("current_dir")
     git_seg = render_git_segment(get_git_status(git_cwd))
+    ctx_seg = render_ctx_segment(parse_transcript(payload.get("transcript_path")))
     if cwd:
         parts.append(cwd)
     if git_seg:
         parts.append(git_seg)
+    if ctx_seg:
+        parts.append(ctx_seg)
     if model:
         parts.append(model)
     return "  ".join(parts)
