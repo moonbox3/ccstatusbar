@@ -1,4 +1,7 @@
-# ccstatusbar
+# Claude Code Status Bar
+
+[![CI](https://github.com/moonbox3/ccstatusbar/actions/workflows/ci.yml/badge.svg)](https://github.com/moonbox3/ccstatusbar/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A single-file, stdlib-only status line for [Claude Code](https://claude.com/claude-code). Shows your working directory, git state, context-window usage, and 5-hour / weekly rate-limit usage at a glance.
 
@@ -6,7 +9,16 @@ A single-file, stdlib-only status line for [Claude Code](https://claude.com/clau
 ~/myproject  main | S:2 U:1 ↑1  ctx:42%(84k/200k)  5h:13%(0h44m)  wk:25%(1d1h)  Opus 4.7
 ```
 
-Segments appear and disappear based on what's available — no git repo, no git segment; API-key user, no rate-limit segments; etc.
+Segments appear and disappear based on what's available — no git repo, no git segment; API-key user, no rate-limit segments; etc. A fresh session starts at `ctx:0%(0k/200k)` and updates as the conversation grows.
+
+## Privacy / network
+
+This script is a single ~800-line Python file you can read end-to-end. What it touches:
+
+- **Local only:** `git status` in the cwd, your session JSONL transcript under `~/.claude/projects/`, and a small cache at `~/.cache/ccstatusbar/usage.json`.
+- **Keychain (macOS) / `~/.claude/.credentials.json` (Linux):** read to get your Claude OAuth token, and written back when a refresh produces a new token.
+- **Network (OAuth users only):** `GET https://api.anthropic.com/api/oauth/usage` for the 5-hour and weekly segments, and `POST https://platform.claude.com/v1/oauth/token` to refresh expired access tokens. API-key users hit no network.
+- **No telemetry, no analytics, no third-party hosts.**
 
 ## Install (recommended)
 
@@ -53,7 +65,7 @@ Segments are joined by two spaces. Order is fixed:
 |---|---|---|
 | `cwd` | Always | `~/myproject` |
 | `git` | When the cwd is inside a git repo | `main \| S:2 U:1 A:1 ↑1↓0` |
-| `ctx` | When a transcript is available with at least one assistant message that reports usage | `ctx:42%(84k/200k)` |
+| `ctx` | Always; reads `0%` until the first assistant turn reports usage | `ctx:42%(84k/200k)` |
 | `5h` / `wk` | OAuth user only, when the usage API is reachable (or recently cached) | `5h:13%(0h44m)` `wk:25%(1d1h)` |
 | `[API auth]` | OAuth credentials are present but a refresh failed | `[API auth]` |
 | `model` | Always (last) | `Opus 4.7` |
@@ -114,3 +126,7 @@ The script is a single file with no runtime dependencies, so it's safe to edit i
 1. Remove the `statusLine` block from `~/.claude/settings.json`.
 2. Delete `~/.claude/ccstatusbar.py`.
 3. (Optional) Delete the cache: `rm -rf ~/.cache/ccstatusbar`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
