@@ -25,6 +25,11 @@ CACHE_STALE_SECONDS = 15 * 60
 CACHE_FAILURE_BACKOFF_SECONDS = 5 * 60
 CREDENTIALS_KEYCHAIN_SERVICE = "Claude Code-credentials"
 
+OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
+OAUTH_CLIENT_ID_DEFAULT = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+OAUTH_REFRESH_TIMEOUT_SECONDS = 5.0
+OAUTH_EXPIRY_BUFFER_MS = 60_000
+
 
 def read_payload(stream) -> dict:
     try:
@@ -235,14 +240,146 @@ def _read_keychain_credentials() -> dict:
     return d if isinstance(d, dict) else None
 
 
+def _file_credentials_path() -> Path:
+    return Path.home() / ".claude" / ".credentials.json"
+
+
 def _read_file_credentials() -> dict:
-    path = Path.home() / ".claude" / ".credentials.json"
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(_file_credentials_path(), "r", encoding="utf-8") as f:
             d = json.load(f)
     except (OSError, ValueError):
         return None
     return d if isinstance(d, dict) else None
+
+
+def _load_credentials():
+    """Returns (creds, source) where source is 'keychain' | 'file' | None."""
+    creds = _read_keychain_credentials()
+    if creds is not None:
+        return creds, "keychain"
+    creds = _read_file_credentials()
+    if creds is not None:
+        return creds, "file"
+    return None, None
+
+
+def _write_keychain_credentials(creds: dict) -> bool:
+    if sys.platform != "darwin":
+        return False
+    user = os.environ.get("USER") or ""
+    if not user:
+        return False
+    try:
+        result = subprocess.run(
+            ["security", "add-generic-password", "-U",
+             "-s", CREDENTIALS_KEYCHAIN_SERVICE,
+             "-a", user, "-w", json.dumps(creds)],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired,
+            subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _write_file_credentials(creds: dict) -> bool:
+    path = _file_credentials_path()
+    try:
+        existing_mode = path.stat().st_mode & 0o777
+    except OSError:
+        existing_mode = 0o600
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(creds, f)
+        os.chmod(tmp, existing_mode)
+        os.replace(tmp, path)
+    except OSError:
+        return False
+    return True
+
+
+def _write_credentials(creds: dict, source: str) -> bool:
+    if source == "keychain":
+        return _write_keychain_credentials(creds)
+    if source == "file":
+        return _write_file_credentials(creds)
+    return False
+
+
+def _merge_oauth(creds: dict, new_oauth: dict) -> dict:
+    """Merge refreshed oauth fields into creds, preserving original shape."""
+    creds = dict(creds) if isinstance(creds, dict) else {}
+    new_fields = {k: v for k, v in new_oauth.items() if v is not None}
+    if isinstance(creds.get("claudeAiOauth"), dict):
+        merged = dict(creds["claudeAiOauth"])
+        merged.update(new_fields)
+        creds["claudeAiOauth"] = merged
+    else:
+        creds.update(new_fields)
+    return creds
+
+
+def _refresh_oauth_token(refresh_token: str, url: str = None,
+                        client_id: str = None,
+                        timeout: float = OAUTH_REFRESH_TIMEOUT_SECONDS,
+                        urlopen=None):
+    """SSRF-guarded refresh. Returns oauth dict or None on failure."""
+    target_url = url if url is not None else OAUTH_TOKEN_URL
+    if target_url != OAUTH_TOKEN_URL:
+        return None
+    if not refresh_token or not isinstance(refresh_token, str):
+        return None
+    cid = (client_id
+           or os.environ.get("CLAUDE_CODE_OAUTH_CLIENT_ID")
+           or OAUTH_CLIENT_ID_DEFAULT)
+    body = json.dumps({
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": cid,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        target_url, data=body,
+        headers={"Content-Type": "application/json",
+                 "Accept": "application/json"},
+        method="POST",
+    )
+    opener = urlopen or urllib.request.urlopen
+    try:
+        with opener(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError,
+            TimeoutError):
+        return None
+    except Exception:
+        return None
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    access = data.get("access_token") or data.get("accessToken")
+    if not access or not isinstance(access, str):
+        return None
+    refresh_new = (data.get("refresh_token")
+                   or data.get("refreshToken")
+                   or refresh_token)
+    expires_at = data.get("expires_at") or data.get("expiresAt")
+    if expires_at is None:
+        expires_in = data.get("expires_in")
+        if expires_in is not None:
+            try:
+                expires_at = int(time.time() * 1000) + int(expires_in) * 1000
+            except (TypeError, ValueError):
+                expires_at = None
+    return {
+        "accessToken": access,
+        "refreshToken": refresh_new,
+        "expiresAt": expires_at,
+    }
 
 
 def _extract_oauth(creds) -> dict:
@@ -256,31 +393,45 @@ def _extract_oauth(creds) -> dict:
     return None
 
 
-def get_access_token(now_ms=None):
-    """Resolve the OAuth access token. Returns None if missing/expired.
+def get_access_token(now_ms=None, refresh_fn=None, write_fn=None,
+                     load_fn=None):
+    """Resolve the OAuth access token, refreshing if expired.
 
-    Slice 04 is read-only — expired tokens are dropped silently. Slice 05
-    will refresh them.
+    Returns (token, error). ``error`` is ``None`` or ``"auth"``. ``"auth"``
+    means we had credentials but the refresh failed — the renderer should
+    show ``[API auth]``. Missing creds returns ``(None, None)`` so
+    API-key users see no marker.
     """
-    creds = _read_keychain_credentials()
-    if creds is None:
-        creds = _read_file_credentials()
+    load_fn = load_fn or _load_credentials
+    creds, source = load_fn()
     oauth = _extract_oauth(creds)
     if not oauth:
-        return None
+        return None, None
     token = oauth.get("accessToken")
-    if not token or not isinstance(token, str):
-        return None
     expires_at = oauth.get("expiresAt")
     if expires_at is not None:
         try:
             expires_at = int(expires_at)
         except (TypeError, ValueError):
-            return None
+            return None, "auth"
         now_v = now_ms if now_ms is not None else int(time.time() * 1000)
-        if now_v >= expires_at:
-            return None
-    return token
+        if now_v + OAUTH_EXPIRY_BUFFER_MS >= expires_at:
+            refresh_token = oauth.get("refreshToken")
+            if not refresh_token or not isinstance(refresh_token, str):
+                return None, "auth"
+            refresh_fn = refresh_fn or _refresh_oauth_token
+            new_oauth = refresh_fn(refresh_token)
+            if not new_oauth:
+                return None, "auth"
+            new_token = new_oauth.get("accessToken")
+            if not new_token or not isinstance(new_token, str):
+                return None, "auth"
+            write_fn = write_fn or _write_credentials
+            write_fn(_merge_oauth(creds, new_oauth), source)
+            return new_token, None
+    if not token or not isinstance(token, str):
+        return None, "auth"
+    return token, None
 
 
 def _normalize_usage(raw) -> dict:
@@ -517,10 +668,13 @@ def render(payload: dict) -> str:
     ctx_seg = render_ctx_segment(parse_transcript(payload.get("transcript_path")))
 
     rate_segs = []
-    token = get_access_token()
+    auth_marker = ""
+    token, auth_err = get_access_token()
     if token:
         usage_info = get_usage(token)
         rate_segs = render_rate_limit_segments(usage_info)
+    elif auth_err == "auth":
+        auth_marker = "[API auth]"
 
     if cwd:
         parts.append(cwd)
@@ -529,6 +683,8 @@ def render(payload: dict) -> str:
     if ctx_seg:
         parts.append(ctx_seg)
     parts.extend(rate_segs)
+    if auth_marker:
+        parts.append(auth_marker)
     if model:
         parts.append(model)
     return "  ".join(parts)
