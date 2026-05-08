@@ -660,6 +660,9 @@ def _format_days_hours(seconds: float) -> str:
         seconds = 0
     d = int(seconds // 86400)
     h = int((seconds % 86400) // 3600)
+    if d == 0 and h == 0:
+        m = int((seconds % 3600) // 60)
+        return f"0d0h{m}m"
     return f"{d}d{h}h"
 
 

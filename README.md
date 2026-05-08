@@ -27,19 +27,19 @@ This script is a single ~800-line Python file you can read end-to-end. What it t
 ## Install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.0/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.1/install.sh | bash
 ```
 
-Both `install.sh` and `statusline.py` are pinned to the `v1.0.0` tag. The script is copied to `~/.claude/ccstatusbar.py`, made executable, and `~/.claude/settings.json` is patched to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
+Both `install.sh` and `statusline.py` are pinned to the `v1.0.1` tag. The script is copied to `~/.claude/ccstatusbar.py`, made executable, and `~/.claude/settings.json` is patched to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
 
 To pin a specific version or follow `main`, set `CCSTATUSBAR_REF`:
 
 ```bash
 # pin to a specific release
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.0/install.sh | CCSTATUSBAR_REF=v1.0.0 bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.1/install.sh | CCSTATUSBAR_REF=v1.0.1 bash
 
 # follow main (bleeding edge)
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.0/install.sh | CCSTATUSBAR_REF=main bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.1/install.sh | CCSTATUSBAR_REF=main bash
 ```
 
 Releases are published at https://github.com/moonbox3/ccstatusbar/releases.
@@ -50,7 +50,7 @@ Restart Claude Code after install.
 
 If you'd rather not pipe a script into bash:
 
-1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.0/statusline.py) to `~/.claude/ccstatusbar.py` (or pick a release at https://github.com/moonbox3/ccstatusbar/releases).
+1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.1/statusline.py) to `~/.claude/ccstatusbar.py` (or pick a release at https://github.com/moonbox3/ccstatusbar/releases).
 2. `chmod +x ~/.claude/ccstatusbar.py`.
 3. Add this to `~/.claude/settings.json` (merge with anything that's already there):
 

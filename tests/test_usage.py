@@ -181,7 +181,8 @@ class FormatHelperTests(unittest.TestCase):
     def test_days_hours(self):
         self.assertEqual(statusline._format_days_hours(3 * 86400 + 4 * 3600), "3d4h")
         self.assertEqual(statusline._format_days_hours(86400), "1d0h")
-        self.assertEqual(statusline._format_days_hours(0), "0d0h")
+        self.assertEqual(statusline._format_days_hours(45 * 60), "0d0h45m")
+        self.assertEqual(statusline._format_days_hours(0), "0d0h0m")
 
 
 class RenderRateLimitTests(unittest.TestCase):
