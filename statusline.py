@@ -48,8 +48,8 @@ def _threshold_color(pct: float) -> str:
 
 USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 USAGE_FETCH_TIMEOUT_SECONDS = 3.0
-CACHE_FRESH_SECONDS = 60
-CACHE_STALE_SECONDS = 15 * 60
+CACHE_FRESH_SECONDS = 5 * 60
+CACHE_STALE_SECONDS = 10 * 60
 CACHE_FAILURE_BACKOFF_SECONDS = 5 * 60
 CREDENTIALS_KEYCHAIN_SERVICE = "Claude Code-credentials"
 
