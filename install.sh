@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-CCSTATUSBAR_REF="${CCSTATUSBAR_REF:-v1.0.3}"
+CCSTATUSBAR_REF="${CCSTATUSBAR_REF:-v1.0.4}"
 SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/ccstatusbar/${CCSTATUSBAR_REF}/statusline.py}"
 DEST_DIR="${HOME}/.claude"
 DEST_SCRIPT="${DEST_DIR}/ccstatusbar.py"
