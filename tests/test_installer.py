@@ -24,6 +24,25 @@ def run_installer(home: Path) -> subprocess.CompletedProcess:
     )
 
 
+def run_installer_piped(home: Path) -> subprocess.CompletedProcess:
+    """Run the installer the way the README does: curl ... | bash.
+
+    BASH_SOURCE is unset on a piped script, so the local-copy probe must
+    not trip set -u. Source the payload from a file:// URL to stay hermetic.
+    """
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["CCSTATUSBAR_SRC_URL"] = (REPO_ROOT / "statusline.py").as_uri()
+    return subprocess.run(
+        ["bash"],
+        stdin=open(INSTALLER),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
 class InstallerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="ccsb-install-")
@@ -51,6 +70,13 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(data["statusLine"]["command"], str(self.dest_script))
         # No backup made when there was no prior settings file.
         self.assertFalse(self.backup.exists())
+
+    def test_piped_install_has_no_unbound_variable_error(self):
+        result = run_installer_piped(self.home)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("unbound variable", result.stderr)
+        self.assertTrue(self.dest_script.exists())
+        self.assertTrue(self.settings.exists())
 
     def test_install_preserves_existing_keys_and_writes_backup(self):
         self.dest_dir.mkdir(parents=True)

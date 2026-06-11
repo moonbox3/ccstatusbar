@@ -20,11 +20,16 @@ BACKUP="${DEST_DIR}/settings.json.bak"
 mkdir -p "${DEST_DIR}"
 
 # Source the script: prefer a local copy if the installer sits next to one
-# (e.g. when run from a git checkout), otherwise download.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOCAL_SRC="${SCRIPT_DIR}/statusline.py"
+# (e.g. when run from a git checkout), otherwise download. When piped into
+# bash (curl ... | bash), BASH_SOURCE is unset — set -u would trip on it —
+# so skip the local-copy probe and download.
+LOCAL_SRC=""
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LOCAL_SRC="${SCRIPT_DIR}/statusline.py"
+fi
 
-if [[ -f "${LOCAL_SRC}" ]]; then
+if [[ -n "${LOCAL_SRC}" && -f "${LOCAL_SRC}" ]]; then
     cp "${LOCAL_SRC}" "${DEST_SCRIPT}"
 else
     if command -v curl >/dev/null 2>&1; then
