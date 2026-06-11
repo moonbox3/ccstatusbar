@@ -42,6 +42,13 @@ class ContextLimitTests(unittest.TestCase):
     def test_1m_suffix_case_insensitive(self):
         self.assertEqual(context_limit("Claude-Opus-4-7[1M]"), 1_000_000)
 
+    def test_fable_native_1m(self):
+        self.assertEqual(context_limit("claude-fable-5"), 1_000_000)
+        self.assertEqual(context_limit("claude-fable-5", "Fable 5"), 1_000_000)
+
+    def test_mythos_native_1m(self):
+        self.assertEqual(context_limit("claude-mythos-5"), 1_000_000)
+
 
 class ParseTranscriptTests(unittest.TestCase):
     def setUp(self):

@@ -225,6 +225,9 @@ def context_limit(*hints: str) -> int:
     blob = " ".join(h for h in hints if h).lower()
     if "[1m]" in blob or "1m context" in blob or "1-million" in blob:
         return 1_000_000
+    # Fable 5 / Mythos 5 have a native 1M window with no [1m] variant marker.
+    if "fable" in blob or "mythos" in blob:
+        return 1_000_000
     return 200_000
 
 
