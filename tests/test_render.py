@@ -10,6 +10,13 @@ import statusline
 
 # ---------- threshold colors ----------
 
+class ColorEnabledTestCase(unittest.TestCase):
+    def setUp(self):
+        self.env_patcher = mock.patch.dict(os.environ, {"NO_COLOR": ""})
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
+
+
 class ThresholdColorTests(unittest.TestCase):
     def test_under_70_is_green(self):
         for pct in (0, 1, 50, 69):
@@ -29,7 +36,7 @@ class ThresholdColorTests(unittest.TestCase):
 
 # ---------- ctx segment colors ----------
 
-class CtxSegmentColorTests(unittest.TestCase):
+class CtxSegmentColorTests(ColorEnabledTestCase):
     def _seg(self, used, model_id="claude-opus-4-7", colorize=True):
         info = {
             "input_tokens": used, "cache_read_tokens": 0,
@@ -73,7 +80,7 @@ class CtxSegmentColorTests(unittest.TestCase):
 
 # ---------- rate-limit colors ----------
 
-class RateLimitColorTests(unittest.TestCase):
+class RateLimitColorTests(ColorEnabledTestCase):
     def _usage(self, fh_pct, wk_pct, stale=False):
         return {
             "data": {

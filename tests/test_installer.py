@@ -32,15 +32,16 @@ def run_installer_piped(home: Path) -> subprocess.CompletedProcess:
     """
     env = os.environ.copy()
     env["HOME"] = str(home)
-    env["CCSTATUSBAR_SRC_URL"] = (REPO_ROOT / "statusline.py").as_uri()
-    return subprocess.run(
-        ["bash"],
-        stdin=open(INSTALLER),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    env["CLAUDECODE_STATUSBAR_SRC_URL"] = (REPO_ROOT / "statusline.py").as_uri()
+    with open(INSTALLER) as installer:
+        return subprocess.run(
+            ["bash"],
+            stdin=installer,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
 
 
 class InstallerTests(unittest.TestCase):
@@ -48,7 +49,7 @@ class InstallerTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="ccsb-install-")
         self.home = Path(self.tmp)
         self.dest_dir = self.home / ".claude"
-        self.dest_script = self.dest_dir / "ccstatusbar.py"
+        self.dest_script = self.dest_dir / "claudecode-statusbar.py"
         self.settings = self.dest_dir / "settings.json"
         self.backup = self.dest_dir / "settings.json.bak"
 

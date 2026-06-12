@@ -1,12 +1,12 @@
 # Claude Code Status Bar
 
-[![CI](https://github.com/moonbox3/ccstatusbar/actions/workflows/ci.yml/badge.svg)](https://github.com/moonbox3/ccstatusbar/actions/workflows/ci.yml)
+[![CI](https://github.com/moonbox3/claudecode-statusbar/actions/workflows/ci.yml/badge.svg)](https://github.com/moonbox3/claudecode-statusbar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A single-file, stdlib-only status line for [Claude Code](https://claude.com/claude-code). Shows your working directory, git state, context-window usage, and 5-hour / weekly rate-limit usage at a glance.
 
 <p align="center">
-  <img src="docs/ccstatusbar.png" alt="ccstatusbar in a Claude Code session" width="900">
+  <img src="docs/claudecode-statusbar.png" alt="claudecode-statusbar in a Claude Code session" width="900">
 </p>
 
 ```
@@ -19,7 +19,7 @@ Segments appear and disappear based on what's available — no git repo, no git 
 
 This script is a single ~800-line Python file you can read end-to-end. What it touches:
 
-- **Local only:** `git status` in the cwd, your session JSONL transcript under `~/.claude/projects/`, and a small cache at `~/.cache/ccstatusbar/usage.json`.
+- **Local only:** `git status` in the cwd, your session JSONL transcript under `~/.claude/projects/`, and a small cache at `~/.cache/claudecode-statusbar/usage.json`.
 - **Keychain (macOS) / `~/.claude/.credentials.json` (Linux):** read to get your Claude OAuth token, and written back when a refresh produces a new token.
 - **Network (OAuth users only):** `GET https://api.anthropic.com/api/oauth/usage` for the 5-hour and weekly segments, and `POST https://platform.claude.com/v1/oauth/token` to refresh expired access tokens. API-key users hit no network.
 - **No telemetry, no analytics, no third-party hosts.**
@@ -27,22 +27,22 @@ This script is a single ~800-line Python file you can read end-to-end. What it t
 ## Install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.4/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/claudecode-statusbar/v1.0.5/install.sh | bash
 ```
 
-Both `install.sh` and `statusline.py` are pinned to the `v1.0.4` tag. The script is copied to `~/.claude/ccstatusbar.py`, made executable, and `~/.claude/settings.json` is patched to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
+Both `install.sh` and `statusline.py` are pinned to the `v1.0.5` tag. The script is copied to `~/.claude/claudecode-statusbar.py`, made executable, and `~/.claude/settings.json` is patched to wire it up as the status line. An existing `settings.json` is backed up to `settings.json.bak` first.
 
-To pin a specific version or follow `main`, set `CCSTATUSBAR_REF`:
+To pin a specific version or follow `main`, set `CLAUDECODE_STATUSBAR_REF`:
 
 ```bash
 # pin to a specific release
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.4/install.sh | CCSTATUSBAR_REF=v1.0.4 bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/claudecode-statusbar/v1.0.5/install.sh | CLAUDECODE_STATUSBAR_REF=v1.0.5 bash
 
 # follow main (bleeding edge)
-curl -fsSL https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.4/install.sh | CCSTATUSBAR_REF=main bash
+curl -fsSL https://raw.githubusercontent.com/moonbox3/claudecode-statusbar/v1.0.5/install.sh | CLAUDECODE_STATUSBAR_REF=main bash
 ```
 
-Releases are published at https://github.com/moonbox3/ccstatusbar/releases.
+Releases are published at https://github.com/moonbox3/claudecode-statusbar/releases.
 
 Restart Claude Code after install.
 
@@ -50,15 +50,15 @@ Restart Claude Code after install.
 
 If you'd rather not pipe a script into bash:
 
-1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/ccstatusbar/v1.0.4/statusline.py) to `~/.claude/ccstatusbar.py` (or pick a release at https://github.com/moonbox3/ccstatusbar/releases).
-2. `chmod +x ~/.claude/ccstatusbar.py`.
+1. Download [`statusline.py`](https://raw.githubusercontent.com/moonbox3/claudecode-statusbar/v1.0.5/statusline.py) to `~/.claude/claudecode-statusbar.py` (or pick a release at https://github.com/moonbox3/claudecode-statusbar/releases).
+2. `chmod +x ~/.claude/claudecode-statusbar.py`.
 3. Add this to `~/.claude/settings.json` (merge with anything that's already there):
 
    ```json
    {
      "statusLine": {
        "type": "command",
-       "command": "/Users/YOU/.claude/ccstatusbar.py"
+       "command": "/Users/YOU/.claude/claudecode-statusbar.py"
      }
    }
    ```
@@ -113,21 +113,21 @@ Set `NO_COLOR=1` (any non-empty value, per [no-color.org](https://no-color.org))
 Your OAuth refresh token can't get a new access token. Run `claude login` to re-authenticate.
 
 **Status line not showing at all.**
-- Check `~/.claude/settings.json` has a `statusLine.command` entry pointing at `~/.claude/ccstatusbar.py`.
+- Check `~/.claude/settings.json` has a `statusLine.command` entry pointing at `~/.claude/claudecode-statusbar.py`.
 - Run the script directly to see if it errors:
 
   ```bash
-  echo '{"model":{"display_name":"Opus 4.7"},"workspace":{"current_dir":"'"$PWD"'"},"transcript_path":""}' | python3 ~/.claude/ccstatusbar.py
+  echo '{"model":{"display_name":"Opus 4.7"},"workspace":{"current_dir":"'"$PWD"'"},"transcript_path":""}' | python3 ~/.claude/claudecode-statusbar.py
   ```
 
 - Restart Claude Code after editing `settings.json`.
 
 **Cache feels stale.**
-Delete `~/.cache/ccstatusbar/usage.json`. The next render will repopulate it.
+Delete `~/.cache/claudecode-statusbar/usage.json`. The next render will repopulate it.
 
 ## Customization
 
-Open `~/.claude/ccstatusbar.py` and edit the constants near the top of the file:
+Open `~/.claude/claudecode-statusbar.py` and edit the constants near the top of the file:
 
 - `RENDER_BUDGET_SECONDS` — wall-clock deadline for the network path (default 2.0).
 - `CACHE_FRESH_SECONDS`, `CACHE_STALE_SECONDS`, `CACHE_FAILURE_BACKOFF_SECONDS` — usage cache TTLs.
@@ -140,8 +140,8 @@ The script is a single file with no runtime dependencies, so it's safe to edit i
 ## Uninstall
 
 1. Remove the `statusLine` block from `~/.claude/settings.json`.
-2. Delete `~/.claude/ccstatusbar.py`.
-3. (Optional) Delete the cache: `rm -rf ~/.cache/ccstatusbar`.
+2. Delete `~/.claude/claudecode-statusbar.py`.
+3. (Optional) Delete the cache: `rm -rf ~/.cache/claudecode-statusbar`.
 
 ## License
 

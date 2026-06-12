@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# ccstatusbar installer.
-# - Installs statusline.py to ~/.claude/ccstatusbar.py
+# claudecode-statusbar installer.
+# - Installs statusline.py to ~/.claude/claudecode-statusbar.py
 # - Patches ~/.claude/settings.json to invoke it as a status line command
 # - Backs up an existing settings.json to settings.json.bak
 #
 # Honors $HOME so it can be exercised in a sandbox during tests.
-# Override the source URL by exporting CCSTATUSBAR_SRC_URL.
-# Override the pinned version (tag, branch, or commit) with CCSTATUSBAR_REF.
+# Override the source URL by exporting CLAUDECODE_STATUSBAR_SRC_URL.
+# Override the pinned version (tag, branch, or commit) with CLAUDECODE_STATUSBAR_REF.
 
 set -euo pipefail
 
-CCSTATUSBAR_REF="${CCSTATUSBAR_REF:-v1.0.4}"
-SRC_URL="${CCSTATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/ccstatusbar/${CCSTATUSBAR_REF}/statusline.py}"
+CLAUDECODE_STATUSBAR_REF="${CLAUDECODE_STATUSBAR_REF:-v1.0.5}"
+SRC_URL="${CLAUDECODE_STATUSBAR_SRC_URL:-https://raw.githubusercontent.com/moonbox3/claudecode-statusbar/${CLAUDECODE_STATUSBAR_REF}/statusline.py}"
 DEST_DIR="${HOME}/.claude"
-DEST_SCRIPT="${DEST_DIR}/ccstatusbar.py"
+DEST_SCRIPT="${DEST_DIR}/claudecode-statusbar.py"
 SETTINGS="${DEST_DIR}/settings.json"
 BACKUP="${DEST_DIR}/settings.json.bak"
 
@@ -37,7 +37,7 @@ else
     elif command -v wget >/dev/null 2>&1; then
         wget -qO "${DEST_SCRIPT}" "${SRC_URL}"
     else
-        echo "ccstatusbar: need curl or wget to download ${SRC_URL}" >&2
+        echo "claudecode-statusbar: need curl or wget to download ${SRC_URL}" >&2
         exit 1
     fi
 fi
@@ -92,6 +92,6 @@ except Exception:
     raise
 PY
 
-echo "ccstatusbar: installed ${DEST_SCRIPT}"
-echo "ccstatusbar: patched ${SETTINGS}"
-echo "ccstatusbar: restart Claude Code to see the new status line."
+echo "claudecode-statusbar: installed ${DEST_SCRIPT}"
+echo "claudecode-statusbar: patched ${SETTINGS}"
+echo "claudecode-statusbar: restart Claude Code to see the new status line."

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ccstatusbar — Claude Code status line.
+"""claudecode-statusbar — Claude Code status line.
 
 Slice 01: skeleton. Reads Claude Code's JSON payload on stdin, prints a
 single line with the cwd basename and model name. Later slices add git,
@@ -569,7 +569,7 @@ def fetch_usage(token: str, timeout: float = USAGE_FETCH_TIMEOUT_SECONDS) -> dic
 
 def _cache_path() -> Path:
     base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(base) / "ccstatusbar" / "usage.json"
+    return Path(base) / "claudecode-statusbar" / "usage.json"
 
 
 def cache_read(path=None) -> dict:
